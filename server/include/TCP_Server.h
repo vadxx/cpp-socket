@@ -19,17 +19,16 @@ public:
     TCP_Server(const char* port);
     ~TCP_Server();
 
-    void init(std::string port_str);
+    void init();
 
     void start();
     void stop();
     void handle(void* data);
 
     void send();
-    struct Data recieve();
+    Data recieve();
 
     void clean();
-    void detach();
 
 private:
     sockaddr_in serv_addr;
@@ -41,7 +40,7 @@ private:
     int newsockfd; // file descriptor
     int count_sock;
     int port;
-    // int pid;
+
     std::thread th_recieve_data;
     std::thread th_send_data;
     std::thread th_handle_client;

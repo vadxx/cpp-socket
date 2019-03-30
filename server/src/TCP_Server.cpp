@@ -6,34 +6,39 @@
 #include <chrono>
 
 TCP_Server::TCP_Server(const char* port)
-    : count_sock(5)
+    : sockfd(-1)
+    , newsockfd(-1)
+    , count_sock(5)
     , serv_active(false)
 {
-    init(port);
     s_data.msg = ("Hi ");
+    this->port = std::stoi(port);
+    init();
 }
 
 TCP_Server::~TCP_Server()
 {
     stop();
+    ::close(sockfd);
+    ::close(newsockfd);
 }
 
-void TCP_Server::init(std::string port_str)
+void TCP_Server::init()
 {
-    sockfd = socket(AF_INET, SOCK_STREAM, 0); // IPv4
+    sockfd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP); // IPv4
     if (sockfd < 0) {
-        std::cout << "ERROR opening socket" << std::endl;
+        perror("ERROR opening socket");
     }
-    port = std::stoi(port_str);
 
-    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_family = PF_INET;
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    // serv_addr.sin_addr.s_addr = inet_addr( "127.0.0.1" );
     serv_addr.sin_port = htons(port);
 
     struct sockaddr* s_addr = reinterpret_cast<struct sockaddr*>(&serv_addr);
     if (::bind(sockfd, s_addr, sizeof(serv_addr)) < 0)
     {
-        std::cout <<"ERROR on binding" << std::endl;
+        perror("ERROR on binding");
     }
 
     // delete ptr
@@ -46,7 +51,7 @@ void TCP_Server::start()
 {
     serv_active = true;
     listen(sockfd, count_sock);
-    std::cout << "Listen ..." << std::endl;
+    std::cout << "Listen ... Port:" << port << std::endl;
     if (th_recieve_data.joinable())
     {
         th_recieve_data.join();
@@ -68,7 +73,6 @@ void TCP_Server::stop()
     }
     serv_active = false;
     std::cout << "Stop ..." << std::endl;
-    detach();
 }
 
 void TCP_Server::handle(void* fd)
@@ -98,7 +102,7 @@ void TCP_Server::send()
         std::cout << "Message: " << str << std::endl;
         sending_struct.msg = "client: " + str + " Hello";
         ::send(newsockfd, &sending_struct, sizeof(sending_struct), 0);
-        clean();
+        // clean();
         std::this_thread::sleep_for(std::chrono::milliseconds(5000));
     }
 }
@@ -119,7 +123,7 @@ Data TCP_Server::recieve()
         }
         data.msg = inet_ntoa(client_addr.sin_addr);
 
-        std::cout << "New Client Addr: " << c_addr << " Port: " << std::endl;
+        std::cout << "New Client Addr: " << c_addr/* << " Port: "*/ << std::endl;
         // pthread_create(&serverThread,NULL,&Task,(void *)newsockfd);
         th_handle_client = std::thread(&TCP_Server::handle, this, reinterpret_cast<void*>(&newsockfd));
         if (th_handle_client.joinable())
@@ -130,6 +134,7 @@ Data TCP_Server::recieve()
         // delete ptr
         c_addr = NULL;
         delete c_addr;
+        std::this_thread::sleep_for(std::chrono::milliseconds(5000));
     }
     return data;
 }
@@ -138,10 +143,4 @@ void TCP_Server::clean()
 {
     s_data.msg = "";
     s_data.msg.resize(1);
-}
-
-void TCP_Server::detach()
-{
-    ::close(sockfd);
-    ::close(newsockfd);
 }
