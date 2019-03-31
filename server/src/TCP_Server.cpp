@@ -12,7 +12,7 @@ TCP_Server::TCP_Server(const char* port)
     , serv_active(false)
 {
     s_data.msg = ("Hi ");
-    this->port = std::stoi(port);
+    this->port = std::atoi(port);
     init();
 }
 
@@ -25,14 +25,13 @@ TCP_Server::~TCP_Server()
 
 void TCP_Server::init()
 {
-    sockfd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP); // IPv4
+    sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP); // IPv4, TCP
     if (sockfd < 0) {
         perror("ERROR opening socket");
     }
 
-    serv_addr.sin_family = PF_INET;
+    serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    // serv_addr.sin_addr.s_addr = inet_addr( "127.0.0.1" );
     serv_addr.sin_port = htons(port);
 
     struct sockaddr* s_addr = reinterpret_cast<struct sockaddr*>(&serv_addr);
@@ -40,7 +39,6 @@ void TCP_Server::init()
     {
         perror("ERROR on binding");
     }
-
     // delete ptr
     s_addr = NULL;
     delete s_addr;
@@ -49,9 +47,14 @@ void TCP_Server::init()
 
 void TCP_Server::start()
 {
-    serv_active = true;
+    serv_active.store(true);
     listen(sockfd, count_sock);
     std::cout << "Listen ... Port:" << port << std::endl;
+    if (th_handle_client.joinable())
+    {
+        th_handle_client.join();
+    }
+
     if (th_recieve_data.joinable())
     {
         th_recieve_data.join();
@@ -67,12 +70,20 @@ void TCP_Server::start()
 
 void TCP_Server::stop()
 {
+    // serv_active.store(false);
+    if (th_send_data.joinable())
+    {
+        th_send_data.join();
+    }
     if (th_recieve_data.joinable())
     {
         th_recieve_data.join();
     }
-    serv_active = false;
-    std::cout << "Stop ..." << std::endl;
+    if (th_handle_client.joinable())
+    {
+        th_handle_client.join();
+    }
+    std::cout << "Stopped" << std::endl;
 }
 
 void TCP_Server::handle(void* fd)
@@ -80,7 +91,7 @@ void TCP_Server::handle(void* fd)
     std::cout << "Handle data client: " << fd << " ..."<< std::endl;
     int newsockfd = reinterpret_cast<long>(fd);
     Data n_data;
-    while(serv_active)
+    while(serv_active.load() == true)
     {
         count_sock = ::recv(newsockfd, reinterpret_cast<void*>(&n_data), sizeof(Data), 0);
         if (count_sock == 0)
@@ -89,13 +100,14 @@ void TCP_Server::handle(void* fd)
             break;
         }
         s_data = n_data;
+        std::this_thread::sleep_for(std::chrono::milliseconds(5000));
     }
 }
 
 void TCP_Server::send()
 {
     std::cout << "Sending ..." << std::endl;
-    while(serv_active)
+    while(serv_active.load() == true)
     {
         struct Data sending_struct;
         std::string str = s_data.msg;
@@ -111,7 +123,7 @@ Data TCP_Server::recieve()
 {
     std::cout << "Recieving ..." << std::endl;
     struct Data data;
-    while(serv_active)
+    while(serv_active.load() == true)
     {
         socklen_t sock_size  = sizeof(client_addr);
         struct sockaddr* c_addr = reinterpret_cast<struct sockaddr*>(&client_addr);
@@ -121,15 +133,18 @@ Data TCP_Server::recieve()
         {
             std::cout << "ERROR on accept" << std::endl;
         }
-        data.msg = inet_ntoa(client_addr.sin_addr);
-
-        std::cout << "New Client Addr: " << c_addr/* << " Port: "*/ << std::endl;
-        // pthread_create(&serverThread,NULL,&Task,(void *)newsockfd);
-        th_handle_client = std::thread(&TCP_Server::handle, this, reinterpret_cast<void*>(&newsockfd));
-        if (th_handle_client.joinable())
+        else
         {
-            std::cout << "Join handle_client" << std::endl;
-            th_handle_client.join();
+            data.msg = inet_ntoa(client_addr.sin_addr);
+            std::cout << "New Client Addr: " << c_addr/* << " Port: "*/ << std::endl;
+            
+            if (th_handle_client.joinable())
+            {
+                std::cout << "Join handle_client" << std::endl;
+                th_handle_client.join();
+            }
+            th_handle_client = std::thread(&TCP_Server::handle, this, reinterpret_cast<void*>(&newsockfd));
+            
         }
         // delete ptr
         c_addr = NULL;

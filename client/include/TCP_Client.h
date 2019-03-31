@@ -12,8 +12,8 @@ struct Data
 
 class TCP_Client
 {
-public:
-    TCP_Client(std::string addr, const char* port);
+  public:
+    TCP_Client(std::string addr, const char *port);
     ~TCP_Client();
 
     void init();
@@ -21,14 +21,15 @@ public:
     void start();
     void stop();
 
+    bool send(Data d);
     Data recieve();
 
-private:
+  private:
     sockaddr_in serv_addr;
     std::string addr;
 
     Data s_data;
-    
+
     int sockfd; // file descriptor
     int port;
 

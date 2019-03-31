@@ -2,7 +2,7 @@
 // Sock_addr_in
 #include <netinet/in.h>
 #include <sys/socket.h>
-
+#include <atomic>
 #include <string>
 #include <thread>
 #include <vector>
@@ -45,5 +45,5 @@ private:
     std::thread th_send_data;
     std::thread th_handle_client;
 
-    bool serv_active;
+    std::atomic<bool> serv_active;
 };
