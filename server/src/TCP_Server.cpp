@@ -5,11 +5,8 @@
 #include <iostream>
 #include <chrono>
 
-TCP_Server::TCP_Server(const char* port)
-    : sockfd(-1)
-    , newsockfd(-1)
-    , count_sock(5)
-    , serv_active(false)
+TCP_Server::TCP_Server(const char *port)
+    : sockfd(-1), newsockfd(-1), count_sock(5), serv_active(false)
 {
     s_data.msg = ("Hi ");
     this->port = std::atoi(port);
@@ -26,7 +23,8 @@ TCP_Server::~TCP_Server()
 void TCP_Server::init()
 {
     sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP); // IPv4, TCP
-    if (sockfd < 0) {
+    if (sockfd < 0)
+    {
         perror("ERROR opening socket");
     }
 
@@ -34,7 +32,7 @@ void TCP_Server::init()
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     serv_addr.sin_port = htons(port);
 
-    struct sockaddr* s_addr = reinterpret_cast<struct sockaddr*>(&serv_addr);
+    struct sockaddr *s_addr = reinterpret_cast<struct sockaddr *>(&serv_addr);
     if (::bind(sockfd, s_addr, sizeof(serv_addr)) < 0)
     {
         perror("ERROR on binding");
@@ -43,7 +41,6 @@ void TCP_Server::init()
     s_addr = NULL;
     delete s_addr;
 }
-
 
 void TCP_Server::start()
 {
@@ -86,14 +83,14 @@ void TCP_Server::stop()
     std::cout << "Stopped" << std::endl;
 }
 
-void TCP_Server::handle(void* fd)
+void TCP_Server::handle(void *fd)
 {
-    std::cout << "Handle data client: " << fd << " ..."<< std::endl;
+    std::cout << "Handle data client: " << fd << " ..." << std::endl;
     int newsockfd = reinterpret_cast<long>(fd);
     Data n_data;
-    while(serv_active.load() == true)
+    while (serv_active.load() == true)
     {
-        count_sock = ::recv(newsockfd, reinterpret_cast<void*>(&n_data), sizeof(Data), 0);
+        count_sock = ::recv(newsockfd, reinterpret_cast<void *>(&n_data), sizeof(Data), 0);
         if (count_sock == 0)
         {
             ::close(newsockfd);
@@ -107,7 +104,7 @@ void TCP_Server::handle(void* fd)
 void TCP_Server::send()
 {
     std::cout << "Sending ..." << std::endl;
-    while(serv_active.load() == true)
+    while (serv_active.load() == true)
     {
         struct Data sending_struct;
         std::string str = s_data.msg;
@@ -123,29 +120,26 @@ Data TCP_Server::recieve()
 {
     std::cout << "Recieving ..." << std::endl;
     struct Data data;
-    while(serv_active.load() == true)
+    while (serv_active.load() == true)
     {
-        socklen_t sock_size  = sizeof(client_addr);
-        struct sockaddr* c_addr = reinterpret_cast<struct sockaddr*>(&client_addr);
+        socklen_t sock_size = sizeof(client_addr);
+        struct sockaddr *c_addr = reinterpret_cast<struct sockaddr *>(&client_addr);
 
         newsockfd = accept(sockfd, c_addr, &sock_size);
-        if (newsockfd < 0) 
+        if (newsockfd < 0)
         {
             std::cout << "ERROR on accept" << std::endl;
         }
-        else
+
+        data.msg = inet_ntoa(client_addr.sin_addr);
+        std::cout << "New Client Addr: " << c_addr /* << " Port: "*/ << std::endl;
+
+        if (th_handle_client.joinable())
         {
-            data.msg = inet_ntoa(client_addr.sin_addr);
-            std::cout << "New Client Addr: " << c_addr/* << " Port: "*/ << std::endl;
-            
-            if (th_handle_client.joinable())
-            {
-                std::cout << "Join handle_client" << std::endl;
-                th_handle_client.join();
-            }
-            th_handle_client = std::thread(&TCP_Server::handle, this, reinterpret_cast<void*>(&newsockfd));
-            
+            std::cout << "Join handle_client" << std::endl;
+            th_handle_client.join();
         }
+        th_handle_client = std::thread(&TCP_Server::handle, this, reinterpret_cast<void *>(&newsockfd));
         // delete ptr
         c_addr = NULL;
         delete c_addr;
